@@ -73,7 +73,6 @@ split_assignments <- function (x, pattern = "; ", ranks = standard_ranks) {
       ifelse(is.na(Genus), Species, paste(Genus, Species))))
 }
 
-# OTU
 cts <- read_tsv(kraken_fp, skip=1) %>%
   rename(Taxon = `#OTU ID`, Assignment = `Consensus Lineage`) %>%
   gather(SampleID, Counts, -Taxon, -Assignment) %>%
@@ -86,7 +85,7 @@ cts <- read_tsv(kraken_fp, skip=1) %>%
 
 \newpage
 
-# Average nucleotide quality after adapter trimming and quality control
+# Average nucleotide quality
 
 Average nucleotide quality score after trimming adapter and filtering low quality (only forward read or reverse read or neither was kept after trimmomatic) read pairs is given. Red dots represent the mean quality score and vertical line segments represent mean $\pm$ sample standard deviation.
 
@@ -125,13 +124,11 @@ pre %>%
 
 \newpage
 
-# Heatmap
+# Heatmap of taxonomic assignments
 
-Each column of the heatmap represents one sample and each row represents one taxon. Taxa were included in the chart if the abundance in any sample exceeded `r 100*prop_cut`%. 
+Focus on Streptococcus, the predominant genus.
 
-The chart is colored white if taxa were not observed in the sample, dark blue if taxa were observed at very low abundance. This allows the reader to quickly survey presence/absence. Abundance values exceeding `r 100*satu_limit`% are colored red, indicating an extremely dominant species.
-
-```{r}
+```{r fig.width=9}
 cts %>%
   filter(Genus %in% "Streptococcus", !is.na(Species)) %>%
   inner_join(s, by="SampleID") %>%
@@ -173,7 +170,7 @@ cts %>%
   left_join(s, by="SampleID") %>%
   ggplot(aes(x=study_day, y=ShannonIdx)) +
   geom_boxplot(coef=1e9) +
-  facet_grid(~ SubjectID) +
+  facet_grid(~ SubjectLabel) +
   labs(y="Shannon index", x="")
 ```
 

@@ -1,0 +1,209 @@
+---
+title: "CHOP Shallow Shotgun Pilot Study"
+---
+
+```{r setup, echo = FALSE, message = FALSE, warning = FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  cache = FALSE,
+  fig.align = "center"
+  )
+```
+
+```{r}
+library(tidyverse)
+library(vegan)
+library(viridis)
+library(ape)
+```
+
+```{r eval=FALSE}
+sample_fp <- "data/sampleinfo.tsv"
+preprocess_fp <- "data/preprocess_summary.tsv"
+quality_fp <- "data/fastqc_quality.tsv"
+kraken_fp <- "data/kraken.tsv"
+```
+
+
+```{r filepaths}
+sample_fp <- file.path(snakemake@input[["sampleinfo"]])
+preprocess_fp <- file.path(snakemake@input[["preprocess"]])
+quality_fp <- file.path(snakemake@input[["quality"]])
+kraken_fp <- file.path(snakemake@input[["kraken"]])
+```
+
+```{r read_data}
+s <- read_tsv(sample_fp) %>%
+  mutate(SubjectLabel = paste("Subj", SubjectID)) %>%
+  mutate(study_day = str_replace(study_day, "Baseline", "Week 0")) %>%
+  mutate(study_day = str_replace(study_day, "Week", "Wk"))
+
+pre <- read_tsv(preprocess_fp) %>%
+  rename(SampleID = Samples) %>%
+  filter(SampleID %in% s$SampleID) %>%
+  rename(
+    demux_reads = input,
+    both_kept_reads = both_kept,
+    host_reads = true,
+    non_host_reads = false)
+
+fq <- read_tsv(quality_fp) %>%
+  mutate(SampleID = str_remove(Samples, "_R[12]$")) %>%
+  mutate(Pair = str_extract(Samples, "R[12]$")) %>%
+  select(-Samples) %>%
+    gather(Position, Quality, -SampleID, -Pair) %>%
+  filter(SampleID %in% s$SampleID) %>%
+  mutate(Position = str_remove(Position, "-\\d+")) %>%
+  mutate(Position = as.numeric(Position))
+
+standard_ranks <- c(
+  "Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species")
+split_assignments <- function (x, pattern = "; ", ranks = standard_ranks) {
+  n <- length(ranks)
+  str_split_fixed(x, pattern = pattern, n = n) %>%
+    `colnames<-`(ranks) %>%
+    as_data_frame() %>%
+    mutate_all(funs(str_remove(., "^[kpcofgs]__"))) %>%
+    mutate_all(funs(ifelse(. %in% "", NA, .))) %>%
+    mutate(Species = ifelse(
+      is.na(Species),
+      NA,
+      ifelse(is.na(Genus), Species, paste(Genus, Species))))
+}
+
+cts <- read_tsv(kraken_fp, skip=1) %>%
+  rename(Taxon = `#OTU ID`, Assignment = `Consensus Lineage`) %>%
+  gather(SampleID, Counts, -Taxon, -Assignment) %>%
+  mutate(SampleID = str_remove(SampleID, "-taxa$")) %>%
+  group_by(SampleID) %>%
+  mutate(Proportion = Counts / sum(Counts)) %>%
+  ungroup() %>%
+  do(cbind(., split_assignments(.$Assignment)))
+```
+
+\newpage
+
+# Average nucleotide quality
+
+Average nucleotide quality score after trimming adapter and filtering low quality (only forward read or reverse read or neither was kept after trimmomatic) read pairs is given. Red dots represent the mean quality score and vertical line segments represent mean $\pm$ sample standard deviation.
+
+```{r}
+fq %>%
+  group_by(Pair, Position) %>%
+  summarise(MeanQual = mean(Quality), SdQual = sd(Quality)) %>%
+  mutate(LowQual = MeanQual - SdQual, HighQual = MeanQual + SdQual) %>%
+  ggplot(aes(Position, MeanQual)) +
+  geom_errorbar(aes(ymin = LowQual, ymax = HighQual)) +
+  theme(aspect.ratio = 1) + 
+  facet_wrap(~ Pair) +
+  geom_point(color = "red") +
+  labs(x = "Position in sequence read", y = "Average quality score")
+```
+
+\newpage
+
+# Read Counts
+
+The red dashed line represents 1 million read counts.
+
+```{r}
+pre %>%
+  select(SampleID, demux_reads, both_kept_reads, non_host_reads) %>%
+  gather(Step, Count, -SampleID) %>%
+  mutate(Step = factor(
+    Step, levels = c("demux_reads","both_kept_reads", "non_host_reads"))) %>%
+  left_join(s, by="SampleID") %>%
+  ggplot(aes(Step, Count)) +
+  geom_boxplot(outlier.alpha = 0) +
+  geom_hline(yintercept = 1e6, lty = "dashed", color = "red") +
+  scale_y_continuous(breaks = (0:10) * 1e6) +
+  labs(x="Preprocessing step", y="Number of read pairs")
+```
+
+\newpage
+
+# Heatmap of taxonomic assignments
+
+Focus on Streptococcus, the predominant genus.
+
+```{r fig.width=9}
+cts %>%
+  filter(Genus %in% "Streptococcus", !is.na(Species)) %>%
+  inner_join(s, by="SampleID") %>%
+  group_by(Species) %>%
+  filter(max(Proportion, na.rm = T) > 0.01) %>%
+  ungroup() %>%
+  mutate(Species = str_replace(Species, "Streptococcus", "S.")) %>%
+  mutate(Species = fct_rev(Species)) %>%
+  arrange(SubjectID, study_day, lib_prep, rxn_scale) %>%
+  mutate(SampleLabel = paste(lib_prep, rxn_scale)) %>%
+  mutate(SampleLabel = fct_inorder(SampleLabel)) %>%
+  ggplot(aes(SampleLabel, Species, fill=Proportion)) +
+  geom_tile() +
+  facet_grid(~ SubjectLabel + study_day, scales = "free_x", space = "free_x") +
+  scale_fill_distiller(palette=4) +
+  labs(x="", y="") +
+  theme_light() +
+  theme(strip.background = element_blank(),
+        strip.text = element_text(color="black", hjust=0),
+    panel.border = element_blank(),
+    axis.ticks = element_blank(),
+    panel.grid = element_blank(),
+    axis.text.x = element_text(angle=90, hjust=1))
+#ggsave("shallow_shotgun_pilot_heatmap.pdf", width=7.2, height=3)
+```
+
+\newpage
+
+# Alpha diversity
+
+Alpha diversity (within sample diversity) was assessd by the Shannon index.
+
+```{r}
+shannon <- function (x) sum(ifelse(x == 0, 0, -x * log(x)))
+cts %>%
+  filter(SampleID %in% s$SampleID) %>%
+  group_by(SampleID) %>%
+  summarize(ShannonIdx = shannon(Proportion)) %>%
+  left_join(s, by="SampleID") %>%
+  ggplot(aes(x=study_day, y=ShannonIdx)) +
+  geom_boxplot(coef=1e9) +
+  facet_grid(~ SubjectLabel) +
+  labs(y="Shannon index", x="")
+```
+
+\newpage
+
+# Beta diversity
+
+Beta diversity (similarity between samples) was assessed by Bray-Curtis distance.
+
+```{r}
+spread_to_matrix <- function (data, row_key, col_key, value) {
+  data <- dplyr::select_(data, row_key, col_key, value)
+  data_wide <- tidyr::spread(data, col_key, value, fill=0)
+  data_wide <- tibble::column_to_rownames(data_wide, row_key)
+  as.matrix(as.data.frame(data_wide))
+}
+
+d <- cts %>%
+  filter(SampleID %in% s$SampleID) %>%
+  spread_to_matrix("SampleID", "Taxon", "Proportion") %>%
+  `[`(., s$SampleID, colnames(.)) %>%
+  vegdist()
+
+pc <- pcoa(d)
+pc_pct <- round(pc$values$Relative_eig * 100)
+
+s %>%
+  cbind(pc$vectors[,1:2]) %>%
+  ggplot() +
+  geom_point(aes(x=Axis.1, y=Axis.2, color=SubjectLabel)) +
+  labs(
+    title = "Bray-Curtis distance", color = "",
+    x = paste0("PCoA axis 1 (", pc_pct[1], "%)"),
+    y = paste0("PCoA axis 2 (", pc_pct[2], "%)")) +
+  theme_bw()
+```

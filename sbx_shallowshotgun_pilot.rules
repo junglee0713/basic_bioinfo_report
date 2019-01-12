@@ -1,0 +1,21 @@
+rule make_shallowshotgun_report:
+    input:
+        kraken = str(CLASSIFY_FP/'kraken'/'all_samples.tsv'),
+        preprocess = str(QC_FP/'preprocess_summary.tsv'),
+        quality = str(QC_FP/'fastqc_quality.tsv'),
+        sampleinfo = sunbeam_dir + '/extensions/sbx_shallowshotgun_pilot/data/sampleinfo.tsv'
+    output:
+        sunbeam_dir + '/extensions/sbx_shallowshotgun_pilot/shallowshotgun_pilot_report.html'
+    script:
+        'shallowshotgun_pilot_report.Rmd'
+
+rule example_shallowshotgun_report:
+    input:
+        kraken = sunbeam_dir + '/extensions/sbx_shallowshotgun_pilot/data/kraken.tsv',
+        preprocess = sunbeam_dir + '/extensions/sbx_shallowshotgun_pilot/data/preprocess_summary.tsv',
+        quality = sunbeam_dir + '/extensions/sbx_shallowshotgun_pilot/data/fastqc_quality.tsv',
+        sampleinfo = sunbeam_dir + '/extensions/sbx_shallowshotgun_pilot/data/sampleinfo.tsv'
+    output:
+        sunbeam_dir + '/extensions/sbx_shallowshotgun_pilot/example_report.html'
+    script:
+        'shallowshotgun_pilot_report.Rmd'

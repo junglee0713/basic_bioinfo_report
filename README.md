@@ -22,5 +22,5 @@ Shallow shotgun sample data are available through NCBI SRA, so you can pass the 
 And then run Sunbeam, specifying `make_shallowshotgun_report` as the target rule:
 
 ```bash
-    sunbeam run --configfile sunbeam_config.yml make_shallowshotgun_report
+  sunbeam run --configfile sunbeam_config.yml make_shallowshotgun_report
 ```

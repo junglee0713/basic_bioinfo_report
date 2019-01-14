@@ -1,0 +1,5 @@
+r-tidyverse
+r-markdown
+r-viridis
+r-vegan
+r-ape

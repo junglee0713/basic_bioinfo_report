@@ -5,7 +5,7 @@ rule make_shallowshotgun_report:
         quality = str(QC_FP/'fastqc_quality.tsv'),
         sampleinfo = sunbeam_dir + '/extensions/sbx_shallowshotgun_pilot/data/sampleinfo.tsv'
     output:
-        sunbeam_dir + '/extensions/sbx_shallowshotgun_pilot/shallowshotgun_pilot_report.html'
+        str(Cfg['all']['output_fp']/'reports/ShallowShotgun_Pilot_Report.html')
     script:
         'shallowshotgun_pilot_report.Rmd'
 
@@ -16,6 +16,6 @@ rule example_shallowshotgun_report:
         quality = sunbeam_dir + '/extensions/sbx_shallowshotgun_pilot/data/fastqc_quality.tsv',
         sampleinfo = sunbeam_dir + '/extensions/sbx_shallowshotgun_pilot/data/sampleinfo.tsv'
     output:
-        sunbeam_dir + '/extensions/sbx_shallowshotgun_pilot/example_report.html'
+        str(Cfg['all']['output_fp']/'reports/Example_ShallowShotgun_Pilot_Report.html')
     script:
         'shallowshotgun_pilot_report.Rmd'

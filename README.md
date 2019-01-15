@@ -16,7 +16,7 @@ Clone the repo into your Sunbeam extensions directory, and install dependencies 
 Shallow shotgun sample data are available through NCBI SRA, so you can pass the SRA project identifier to `sunbeam init`:
 
 ```bash
-  sunbeam init shallow_shotgun --data_acc SRP_ID_to_be_given
+  sunbeam init shallow_shotgun --data_acc SRP178101
 ```
     
 And then run Sunbeam, specifying `make_shallowshotgun_report` as the target rule:

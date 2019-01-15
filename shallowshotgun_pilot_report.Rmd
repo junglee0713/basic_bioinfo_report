@@ -38,7 +38,8 @@ kraken_fp <- file.path(snakemake@input[["kraken"]])
 s <- read_tsv(sample_fp) %>%
   mutate(SubjectLabel = paste("Subj", SubjectID)) %>%
   mutate(study_day = str_replace(study_day, "Baseline", "Week 0")) %>%
-  mutate(study_day = str_replace(study_day, "Week", "Wk"))
+  mutate(study_day = str_replace(study_day, "Week", "Wk")) %>%
+  mutate(Specimen = paste("Specimen", NautilusID_sample))
 
 pre <- read_tsv(preprocess_fp) %>%
   rename(SampleID = Samples) %>%
@@ -96,9 +97,8 @@ fq %>%
   mutate(LowQual = MeanQual - SdQual, HighQual = MeanQual + SdQual) %>%
   ggplot(aes(Position, MeanQual)) +
   geom_errorbar(aes(ymin = LowQual, ymax = HighQual)) +
-  theme(aspect.ratio = 1) + 
   facet_wrap(~ Pair) +
-  geom_point(color = "red") +
+  geom_point() +
   labs(x = "Position in sequence read", y = "Average quality score")
 ```
 
@@ -106,7 +106,7 @@ fq %>%
 
 # Read Counts
 
-The red dashed line represents 1 million read counts.
+The dashed line represents 1 million read counts.
 
 ```{r}
 pre %>%
@@ -117,7 +117,7 @@ pre %>%
   left_join(s, by="SampleID") %>%
   ggplot(aes(Step, Count)) +
   geom_boxplot(outlier.alpha = 0) +
-  geom_hline(yintercept = 1e6, lty = "dashed", color = "red") +
+  geom_hline(yintercept = 1e6, lty = "dashed") +
   scale_y_continuous(breaks = (0:10) * 1e6) +
   labs(x="Preprocessing step", y="Number of read pairs")
 ```
@@ -128,8 +128,8 @@ pre %>%
 
 Focus on Streptococcus, the predominant genus.
 
-```{r fig.width=9}
-cts %>%
+```{r}
+strep_df <- cts %>%
   filter(Genus %in% "Streptococcus", !is.na(Species)) %>%
   inner_join(s, by="SampleID") %>%
   group_by(Species) %>%
@@ -139,7 +139,11 @@ cts %>%
   mutate(Species = fct_rev(Species)) %>%
   arrange(SubjectID, study_day, lib_prep, rxn_scale) %>%
   mutate(SampleLabel = paste(lib_prep, rxn_scale)) %>%
-  mutate(SampleLabel = fct_inorder(SampleLabel)) %>%
+  mutate(SampleLabel = fct_inorder(SampleLabel))
+```
+
+```{r fig.width=9}
+strep_df %>%
   ggplot(aes(SampleLabel, Species, fill=Proportion)) +
   geom_tile() +
   facet_grid(~ SubjectLabel + study_day, scales = "free_x", space = "free_x") +
@@ -155,6 +159,16 @@ cts %>%
 #ggsave("shallow_shotgun_pilot_heatmap.pdf", width=7.2, height=3)
 ```
 
+```{r}
+mitis_model <- strep_df %>%
+  filter(Species %in% "S. mitis") %>%
+  lm(log10(Proportion) ~ Specimen + lib_prep + rxn_scale, data=.)
+summary(mitis_model)
+anova(mitis_model)
+mean(coef(mitis_model)[2:8])
+```
+
+
 \newpage
 
 # Alpha diversity
@@ -163,16 +177,25 @@ Alpha diversity (within sample diversity) was assessd by the Shannon index.
 
 ```{r}
 shannon <- function (x) sum(ifelse(x == 0, 0, -x * log(x)))
-cts %>%
+alpha_df <- cts %>%
   filter(SampleID %in% s$SampleID) %>%
   group_by(SampleID) %>%
   summarize(ShannonIdx = shannon(Proportion)) %>%
-  left_join(s, by="SampleID") %>%
+  left_join(s, by="SampleID")
+```
+
+```{r}
+alpha_df %>%
   ggplot(aes(x=study_day, y=ShannonIdx)) +
   geom_boxplot(coef=1e9) +
   facet_grid(~ SubjectLabel) +
   labs(y="Shannon index", x="")
 ```
+
+```{r}
+summary(lm(ShannonIdx ~ Specimen + lib_prep + rxn_scale, data=alpha_df))
+```
+
 
 \newpage
 
@@ -198,12 +221,17 @@ pc <- pcoa(d)
 pc_pct <- round(pc$values$Relative_eig * 100)
 
 s %>%
+  mutate(Method = paste(lib_prep, rxn_scale)) %>%
   cbind(pc$vectors[,1:2]) %>%
   ggplot() +
-  geom_point(aes(x=Axis.1, y=Axis.2, color=SubjectLabel)) +
+  geom_point(aes(x=Axis.1, y=Axis.2, color=SubjectLabel, shape=Method)) +
   labs(
     title = "Bray-Curtis distance", color = "",
     x = paste0("PCoA axis 1 (", pc_pct[1], "%)"),
     y = paste0("PCoA axis 2 (", pc_pct[2], "%)")) +
   theme_bw()
+```
+
+```{r}
+adonis(d ~ Specimen + lib_prep + rxn_scale, data=s)
 ```

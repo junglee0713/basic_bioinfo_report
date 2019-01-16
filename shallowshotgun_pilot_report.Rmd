@@ -19,7 +19,7 @@ library(viridis)
 library(ape)
 ```
 
-```{r}
+```{r eval=FALSE}
 sample_fp <- "data/sampleinfo.tsv"
 preprocess_fp <- "data/preprocess_summary.tsv"
 quality_fp <- "data/fastqc_quality.tsv"
@@ -27,7 +27,7 @@ kraken_fp <- "data/kraken.tsv"
 ```
 
 
-```{r eval=FALSE}
+```{r}
 sample_fp <- file.path(snakemake@input[["sampleinfo"]])
 preprocess_fp <- file.path(snakemake@input[["preprocess"]])
 quality_fp <- file.path(snakemake@input[["quality"]])

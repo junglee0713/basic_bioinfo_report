@@ -27,7 +27,7 @@ kraken_fp <- "data/kraken.tsv"
 ```
 
 
-```{r filepaths}
+```{r}
 sample_fp <- file.path(snakemake@input[["sampleinfo"]])
 preprocess_fp <- file.path(snakemake@input[["preprocess"]])
 quality_fp <- file.path(snakemake@input[["quality"]])
@@ -84,6 +84,13 @@ cts <- read_tsv(kraken_fp, skip=1) %>%
   do(cbind(., split_assignments(.$Assignment)))
 ```
 
+Tongue swab samples were collected from three healthy subjects at baseline, four
+weeks, and eight weeks from study initiation. DNA was extracted with the Qiagen
+DNeasy PowerSoil kit, and was prepared for shotgun metagenomic sequencing using
+either the Nextera XT kit (XT) or Nextera Flex DNA kit (Flex). Each kit was used
+with both the full reagent volume (1X), or with 1/4 reagent volume (1/4X).
+Libraries were sequenced on an Illumina HiSeq 2500 instrument.
+
 \newpage
 
 # Average nucleotide quality
@@ -126,7 +133,7 @@ pre %>%
 
 # Heatmap of taxonomic assignments
 
-Focus on Streptococcus, the predominant genus.
+Here, we focus on Streptococcus, the predominant genus.
 
 ```{r}
 strep_df <- cts %>%
@@ -164,8 +171,12 @@ mitis_model <- strep_df %>%
   filter(Species %in% "S. mitis") %>%
   lm(log10(Proportion) ~ Specimen + lib_prep + rxn_scale, data=.)
 summary(mitis_model)
-anova(mitis_model)
-mean(coef(mitis_model)[2:8])
+```
+
+```{r}
+mitis_model %>%
+  anova %>%
+  within({`R-squared` <- `Sum Sq` / sum(`Sum Sq`)})
 ```
 
 
